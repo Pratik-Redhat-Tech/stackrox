@@ -83,6 +83,9 @@ func (ds *datastoreImpl) DeleteEventsForResource(ctx context.Context, resourceID
 		return err
 	}
 
+	// Drop matching buffered events first so a later Flush cannot reinsert them.
+	ds.writer.DropForResource(resourceID)
+
 	var ids []string
 	err := ds.store.GetByQueryFn(ctx, search.EmptyQuery(), func(event *storage.AdministrationEvent) error {
 		if event.GetResource().GetId() == resourceID {

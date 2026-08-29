@@ -11,7 +11,9 @@ import (
 	postgresStore "github.com/stackrox/rox/central/imageintegration/store/postgres"
 	v1 "github.com/stackrox/rox/generated/api/v1"
 	"github.com/stackrox/rox/generated/storage"
+	adminEvents "github.com/stackrox/rox/pkg/administration/events"
 	"github.com/stackrox/rox/pkg/errox"
+	"github.com/stackrox/rox/pkg/fixtures"
 	"github.com/stackrox/rox/pkg/fixtures/fixtureconsts"
 	"github.com/stackrox/rox/pkg/postgres/pgtest"
 	"github.com/stackrox/rox/pkg/protoassert"
@@ -319,6 +321,20 @@ func (suite *ImageIntegrationDataStoreTestSuite) TestRemoveImageIntegrationClear
 	gotKeep, err := suite.adminEvents.GetEvent(suite.adminCtx, keepEvent.GetId())
 	suite.NoError(err)
 	suite.Equal(keepEvent.GetId(), gotKeep.GetId())
+}
+
+func (suite *ImageIntegrationDataStoreTestSuite) TestRemoveImageIntegrationClearsBufferedEvents() {
+	integration := suite.storeIntegration("buffered events cleanup")
+
+	event := fixtures.GetAdministrationEvent()
+	event.ResourceID = integration.GetId()
+	suite.Require().NoError(suite.adminEvents.AddEvent(suite.adminCtx, event))
+
+	suite.Require().NoError(suite.datastore.RemoveImageIntegration(suite.hasWriteCtx, integration.GetId()))
+	suite.Require().NoError(suite.adminEvents.Flush(suite.adminCtx))
+
+	_, err := suite.adminEvents.GetEvent(suite.adminCtx, adminEvents.GenerateEventID(event))
+	suite.ErrorIs(err, errox.NotFound)
 }
 
 func (suite *ImageIntegrationDataStoreTestSuite) TestSearch() {
